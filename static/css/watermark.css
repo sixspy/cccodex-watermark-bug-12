@@ -91,6 +91,17 @@ th { color: var(--muted); font-weight: 500; }
   background: #e7f5c8;
   font-size: 0.75rem;
 }
+.chip.cur {
+  background: var(--lime);
+  color: var(--lime-ink);
+  font-weight: 700;
+  outline: 1px solid #8bc34a;
+}
+.cred {
+  font-family: ui-monospace, "Cascadia Mono", monospace;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
 .muted { color: var(--muted); }
 .row { display: flex; gap: 0.5rem; flex-wrap: wrap; margin: 0.7rem 0; }
 .cardish {

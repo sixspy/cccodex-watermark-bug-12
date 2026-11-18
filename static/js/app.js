@@ -9,6 +9,8 @@
   let stampValue = "";
   let traceValue = "WM-ORD-131";
   let traceResult = null;
+  let rebindFor = null;
+  let rebindCol = "";
 
   async function api(path, opts = {}) {
     const r = await fetch(path, {
@@ -44,22 +46,45 @@
 
   function renderTemplates() {
     return `
-      <h2>水印模板</h2>
+      <h2>列绑目录 · 水印模板</h2>
       <table>
-        <thead><tr><th>表</th><th>列</th><th>版本</th><th>状态</th></tr></thead>
+        <thead><tr><th>表</th><th>现行列</th><th>版本</th><th>状态</th><th>凭证标记</th><th></th></tr></thead>
         <tbody>
           ${templates
             .map(
               (t) => `<tr>
             <td>${t.table_name}</td>
-            <td>${t.column_name}</td>
-            <td>${t.version_no}</td>
+            <td>${
+              t.status === "现行"
+                ? `<span class="chip cur">${t.bound_column || t.column_name}</span>`
+                : t.column_name
+            }</td>
+            <td>v${t.version_no}</td>
             <td><span class="chip">${t.status}</span></td>
+            <td><span class="cred">${t.credential || "—"}</span></td>
+            <td>${
+              t.status === "现行"
+                ? `<button type="button" class="ghost" data-rebind="${t.table_name}">换绑</button>`
+                : ""
+            }</td>
           </tr>`
             )
             .join("")}
         </tbody>
-      </table>`;
+      </table>
+      ${
+        rebindFor
+          ? `<div class="cardish">
+        <h3>换绑现行列</h3>
+        <p>${rebindFor} · 换绑后旧列整笔回滚，追索查只读新列</p>
+        <label>新列名<input id="rebind-input" value="${rebindCol}" placeholder="例如 wm_batch_v2" /></label>
+        <div class="row">
+          <button type="button" id="btn-rebind">确认换绑</button>
+          <button type="button" class="ghost" id="btn-rebind-cancel">取消</button>
+        </div>
+      </div>`
+          : ""
+      }`;
   }
 
   function renderBatches() {
@@ -103,6 +128,7 @@
   function renderTrace() {
     const src = (traceResult && traceResult.sources) || [];
     const down = (traceResult && traceResult.downstream) || [];
+    const binds = (traceResult && traceResult.bindings) || [];
     return `
       <h2>下游追索</h2>
       <label>水印值<input id="trace-input" value="${traceValue}" placeholder="例如 WM-ORD-131" /></label>
@@ -119,6 +145,15 @@
               `<li>${d.run_code} · ${d.status} · ${d.watermark_value || "未盖印"}</li>`
           )
           .join("")}</ul>
+        <div class="cardish">
+          <h3>追索附页 · 现行列绑定</h3>
+          <ul>${binds
+            .map(
+              (b) =>
+                `<li>${b.table_name} · <span class="chip cur">${b.column_name}</span> · 凭证 <span class="cred">${b.credential}</span></li>`
+            )
+            .join("")}</ul>
+        </div>
       </div>`
           : ""
       }`;
@@ -159,6 +194,38 @@
         render();
       };
     });
+    view.querySelectorAll("[data-rebind]").forEach((btn) => {
+      btn.onclick = () => {
+        rebindFor = btn.dataset.rebind;
+        rebindCol = "";
+        setMsg("");
+        render();
+      };
+    });
+    const rebindInput = document.getElementById("rebind-input");
+    if (rebindInput) {
+      rebindInput.oninput = () => (rebindCol = rebindInput.value);
+      document.getElementById("btn-rebind-cancel").onclick = () => {
+        rebindFor = null;
+        setMsg("");
+        render();
+      };
+      document.getElementById("btn-rebind").onclick = async () => {
+        setMsg("换绑中…");
+        try {
+          const r = await api("/api/templates/rebind", {
+            method: "POST",
+            body: JSON.stringify({ table_name: rebindFor, column_name: rebindCol }),
+          });
+          rebindFor = null;
+          await refresh();
+          setMsg(`换绑完成 · 现行列 ${r.column_name} · 凭证 ${r.credential}`);
+          render();
+        } catch (e) {
+          setMsg(e.message);
+        }
+      };
+    }
     const stampInput = document.getElementById("stamp-input");
     if (stampInput) {
       stampInput.oninput = () => (stampValue = stampInput.value);
